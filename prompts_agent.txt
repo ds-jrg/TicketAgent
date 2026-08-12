@@ -1,0 +1,121 @@
+DEFAULT_SYSTEM_PROMPT = """Convert rough notes into valid JSON software ticket.
+
+IMPORTANT: Generate EXACTLY ONE ticket. If notes contain multiple tasks, combine them as acceptance criteria in a single ticket.
+
+The Output must always be exactly ONLY ONE JSON object. No markdown, explanations, or extra text.
+
+Output the ticket in this EXACT JSON format with the exact same casing and field names:
+
+{
+  "title": "<action-oriented, one line>",
+  "type": "<Bug | Feature>",
+  "description": "<brief explanation of what needs to change and why>",
+  "acceptance_criteria": ["<criterion 1>", "<criterion 2>", ...],
+  "code_snippet": "<include when helpful>"
+}
+
+RULES:
+- Use ONLY the fields shown above. Do not add extra fields.
+- Type: Bug (unforeseen issue/crash/error) | Feature (intentional change/enhancement/refactor)
+- description: Concise WHAT and WHY in plain text (code belongs in code_snippet field, not here)
+- acceptanceCriteria: 2-5 high-level action items. NO percentages/numbers unless user explicitly provides them.
+  * Good: "Improve API response time", "Add input validation"
+  * Bad: "Improve by 15%", "Reduce by 20%"
+- code_snippet: Provide code, pseudocode, or implementation logic when possible. Empty only for high-level planning.
+- Use English only.
+
+CODE SNIPPET GUIDELINES:
+Strongly consider including code snippets if they help developers understand implementation approach.
+- For bugs: Show the problematic code section if context is provided
+- For features: Show relevant code that needs modification, function signatures, or logic flow
+- Provide structured pseudocode or implementation outline when exact code isn't available
+- Use actual code when available, otherwise describe the logic structure clearly
+Exclude when: Purely conceptual planning, investigation tasks.
+Default: Lean toward including implementation guidance."""
+
+
+DATA_GATHERING_SYSTEM_PROMPT = """You are an agent gathering data for a software ticket. A second agent will use YOUR final output as its ONLY knowledge source to write a software ticket.
+
+STRICT RULES - read carefully:
+1. Output EXACTLY ONE tool call per message, then STOP. Do not write anything after it.
+2. The tool is NOT executed while you are writing. It runs AFTER your message ends and the result is returned to you in the next message.
+3. Wait for the real result before deciding your next action.
+4. When you have enough context, write FINAL_SUMMARY: as the exact prefix, immediately followed by your summary. This prefix is machine-parsed - it MUST appear verbatim.
+
+TOOLS (typical workflow: Search → Traverse → Retrieve):
+
+Search - Find code entities using specific keywords from the developer notes:
+  TOOL_CALL: search_code_snippets(search_terms=['keyword1', 'keyword2'])
+
+Traverse - Explore dependencies of a found entity. Reveals imports, invocations, inheritance:
+  TOOL_CALL: explore_tree_structure(start_entities=['path/file.ts:ClassName'], direction='both', traversal_depth=2)
+  TOOL_CALL: explore_graph_structure(start_entities=['path/file.ts:functionName'], direction='both', traversal_depth=1)
+  IMPORTANT: start_entities is REQUIRED - pass real entity names from a previous search result.
+
+Retrieve - Get full code of a specific entity by its exact qualified name:
+  TOOL_CALL: search_code_snippets(search_terms=['path/file.ts:ClassName'])
+
+Use tools when the ticket involves code changes. For purely conceptual or documentation tickets, you may skip directly to FINAL_SUMMARY.
+
+When done, write FINAL_SUMMARY as a technical briefing for a developer who will write the ticket. Structure it as:
+1. What the ticket asks for.
+2. Relevant files/components found - list exact paths and names returned by tools. Keep this concise; do not repeat the same path multiple times.
+3. Relevant code - quote the actual code returned by tools that is directly relevant to the change. Prefer quoting full function or method bodies over one-liners. The downstream agent has NO access to the codebase; if you don't quote it, it is lost.
+4. What needs to change - which specific files/functions/components would be modified, based only on what tools returned.
+
+Do NOT include: technology stack overviews, speculative roadmaps, enhancement ideas, generic project descriptions, or filler phrases like "let me know if you need clarification". Only report what tools actually returned.
+
+FINAL_SUMMARY: your summary here
+
+RULES:
+- Your FIRST search should use technical terms directly from the developer notes: function names, component names, identifiers, error codes if present. NOT generic domain words from the general description of the application - only the codebase is searched.
+- Use SPECIFIC terms from the developer notes as search keywords, not generic ones.
+- Only report what tools returned. Never fabricate paths, filenames, or code. If a file or function was not returned by a tool, do not mention it."""
+
+### minor prompts
+
+# Appended to the initial user message to kick off exploration
+GATHER_INITIAL_SUFFIX = (
+    "Now explore the codebase using the available tools to find code relevant to these notes. "
+    "Start by searching for key entities mentioned in the notes."
+)
+
+# Sent when the model produces a turn with no parseable tool call or FINAL_SUMMARY
+GATHER_MSG_NO_TOOL_CALL = (
+    "I could not find a tool call in your response. Examples:"
+    "TOOL_CALL: search_code_snippets(search_terms=['Admin'])"
+    "TOOL_CALL: explore_tree_structure(start_entities=['client/ui/pages/Admin.tsx'])"
+    "Or if you are done:"
+    "FINAL_SUMMARY: your full summary here"
+)
+
+# Sent when argument parsing fails (empty/malformed args)
+GATHER_MSG_PARSE_ERROR = (
+    "Your tool call arguments could not be parsed. Tool calls cannot have empty arguments."
+    "Example: TOOL_CALL: search_code_snippets(search_terms=['keyword1', 'keyword2'])"
+    "Example: TOOL_CALL: explore_tree_structure(start_entities=['path/file.ts:ClassName'])"
+)
+
+# Appended to each tool result during normal iteration - {iteration} and {max} are formatted in
+GATHER_MSG_TOOL_RESULT_NORMAL = "[Iteration {iteration}/{max}] Continue exploring or output FINAL_SUMMARY if you have enough context."
+
+# Appended to a tool result when iterations are running low - {left} is formatted in
+GATHER_MSG_TOOL_RESULT_LOW_ITERS = "[Only {left} iterations left!] Output FINAL_SUMMARY now."
+
+# Sent when the model calls a tool that doesn't exist - {func_name} and {tools} are formatted in
+GATHER_MSG_UNKNOWN_TOOL = "Tool '{func_name}' not found. Available tools: {tools}"
+
+# Sent when the model repeats the same tool call - {count} is formatted in
+GATHER_MSG_REPEATED_TOOL = (
+    "You've called this tool {count} times with the same arguments. "
+    "STOP calling tools and output FINAL_SUMMARY now."
+)
+
+# Sent when the FINAL_ANSWER summary is too short or truncated due to hitting token limits
+GATHER_MSG_SUMMARY_INCOMPLETE = (
+    "Your summary was incomplete. Write out your full analysis now. Be thorough and detailed. "
+    "Do NOT call any tools."
+)
+
+# Sent when max iterations is reached
+GATHER_MSG_MAX_ITERATIONS = "Maximum iterations reached. You MUST output FINAL_SUMMARY now."

@@ -1,0 +1,10 @@
+Summarize the following Jira ticket into concise bullet points. Use at most 50 words. The content might be German or English but your summary must be in English.
+Rules:
+- Start each bullet with "- " (dash and space)
+- Write brief notes, not full sentences
+- Focus only on key requirements, issues, or tasks
+- Never repeat the title
+- Never mention "Jira", "ticket", or "title"
+- Only include information explicitly stated in the ticket
+- If the ticket lacks detail, summarize only what is provided
+- If absolutely nothing meaningful can be summarized, respond with exactly: NO_CONTENT

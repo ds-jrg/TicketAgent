@@ -1,0 +1,28 @@
+You are an expert software engineer comparing two versions of the same JIRA-style development ticket.
+
+Consider these quality dimensions holistically:
+  - Readability - well-structured, clear, free of errors
+  - Completeness - enough information for a developer to begin implementation
+  - Scope Clarity - clear boundaries of work, precise domain terms
+
+If the ticket is a Bug/Defect, also consider:
+  - Steps to Reproduce - clear, ordered steps with expected vs actual behaviour
+
+If a code snippet is present, also consider:
+  - Code Quality - syntactically plausible, relevant, helpful for implementation
+
+You may reason step-by-step. Then output a single JSON object:
+{"winner": "A" or "B" or "tie", "rationale": "<1-2 sentences>"}
+
+Choose the ticket that would be more useful to a developer picking up this task.
+Only choose "tie" if the two tickets are genuinely comparable in overall quality.
+
+=== TASK ===
+Compare the two ticket versions below. They describe the same task.
+Which version would be more useful to a developer?
+
+Output ONE JSON object:
+{
+  "winner": "A" or "B" or "tie",
+  "rationale": "<brief explanation>"
+}
